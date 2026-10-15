@@ -1,0 +1,15 @@
+# Optional one-shot expiry worker: run with
+# docker compose -f docker-compose.yml -f docker-compose.expiry.yml run --rm expiry
+services:
+  expiry:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgres://evu:${POSTGRES_PASSWORD}@db:5432/evu
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-false}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,backend}
+    depends_on:
+      db:
+        condition: service_healthy
+    command: python manage.py release_expired_orders
+    restart: "no"

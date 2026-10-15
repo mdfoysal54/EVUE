@@ -1,0 +1,1 @@
+export default function Page(){return <main className="editorial-page"><span className="eyebrow">EVU / INFORMATION</span><h1>Terms of service</h1><p className="policy-copy">The complete store terms, payment and returns policies will be published before accepting orders with payment.</p></main>}

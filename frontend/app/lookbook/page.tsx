@@ -1,0 +1,2 @@
+import Link from "next/link";
+export default function Lookbook(){return <main className="editorial-page"><span className="eyebrow">EVU LOOKBOOK</span><h1>Wear it<br/><em>your way.</em></h1><p>Editorial looks and shoppable garment hotspots will appear here when approved campaign media and SKU mappings are available.</p><Link className="underlined-link" href="/shop">SHOP THE COLLECTION ↗</Link></main>}

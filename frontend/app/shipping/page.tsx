@@ -1,0 +1,1 @@
+export default function Page(){return <main className="editorial-page"><span className="eyebrow">EVU / INFORMATION</span><h1>Shipping & returns</h1><p className="policy-copy">Shipping methods, rates and return eligibility will be published before paid checkout becomes available.</p></main>}

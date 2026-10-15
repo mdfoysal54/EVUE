@@ -1,0 +1,1 @@
+export default function Page(){return <main className="editorial-page"><span className="eyebrow">EVU / INFORMATION</span><h1>Privacy information</h1><p className="policy-copy">Our full privacy notice will be published before production launch. Please do not submit sensitive information through unconfigured forms.</p></main>}
