@@ -7,8 +7,39 @@ class Announcement(models.Model):
     body = models.TextField()
     published = models.BooleanField(default=False)
     important = models.BooleanField(default=False)
+    class Kind(models.TextChoices):
+        GENERAL = 'general', 'General'
+        LAUNCH = 'launch', 'Product launch'
+        OFFER = 'offer', 'Special offer'
+        COLLECTION = 'collection', 'Collection'
+        SERVICE = 'service', 'Service update'
+    class Placement(models.TextChoices):
+        BAR = 'bar', 'Announcement bar'
+        HOME = 'home', 'Homepage'
+        BOTH = 'both', 'Both'
+    kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.GENERAL)
+    placement = models.CharField(max_length=10, choices=Placement.choices, default=Placement.BOTH)
+    slug = models.SlugField(max_length=180, unique=True, null=True, blank=True)
+    image = models.ImageField(upload_to='announcements/%Y/%m/', null=True, blank=True)
+    cta_label = models.CharField(max_length=70, blank=True)
+    cta_url = models.CharField(max_length=300, blank=True)
+    publish_from = models.DateTimeField(null=True, blank=True)
+    publish_until = models.DateTimeField(null=True, blank=True)
+    priority = models.PositiveSmallIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.publish_from and self.publish_until and self.publish_until <= self.publish_from:
+            raise ValidationError({'publish_until': 'End must be after start.'})
+        if self.cta_url and not (self.cta_url.startswith('/') and not self.cta_url.startswith('//')):
+            raise ValidationError({'cta_url': 'Use a relative site path beginning with /.'})
     def __str__(self): return self.title
+
+class NewsletterSubscription(models.Model):
+    email = models.EmailField(unique=True)
+    consented_at = models.DateTimeField(auto_now_add=True)
+    active = models.BooleanField(default=True)
+    def __str__(self): return self.email
 
 class Offer(models.Model):
     code = models.CharField(max_length=40, unique=True)

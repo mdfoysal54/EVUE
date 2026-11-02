@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type React from "react";
 import "./globals.css";
+import "./variant-picker.css";
 
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";

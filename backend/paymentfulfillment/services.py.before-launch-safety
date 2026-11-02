@@ -1,0 +1,205 @@
+import uuid
+from decimal import Decimal, InvalidOperation
+from django.db import transaction
+from django.db.models import F
+from django.utils import timezone
+
+# Adjust these imports to match your project's app structure
+from .models import (
+    Purchase,
+    PurchaseLine,
+    Inventory,
+    ShippingQuote,
+    PaymentAttempt,
+    Delivery,
+    DeliveryEvent,
+)
+
+
+class PaymentError(Exception):
+    pass
+
+
+# Gateway integration hooks — implement or connect these to your gateway client
+def config():
+    """Returns (store_id, store_passwd, is_sandbox) or similar credentials."""
+    raise NotImplementedError("Connect this to your gateway configuration.")
+
+
+def validate(validation_id):
+    """
+    Validates payment against payment gateway API.
+    Expected return dict shape:
+        {
+            'store_id': '...',
+            'tran_id': '...',
+            'amount': '...',
+            'currency': '...'
+        }
+    """
+    raise NotImplementedError("Connect this to your payment gateway validation API.")
+
+
+@transaction.atomic
+def prepare_payment(user, purchase_id, address):
+    try:
+        purchase = Purchase.objects.select_for_update().get(pk=purchase_id, user=user)
+    except Purchase.DoesNotExist:
+        raise PaymentError("Order not found")
+
+    if purchase.status != Purchase.State.RESERVED or purchase.expires_at <= timezone.now():
+        raise PaymentError("Order is not available for payment")
+
+    required = ("recipient", "phone", "address", "city")
+    if any(not isinstance(address.get(k), str) or not address[k].strip() for k in required):
+        raise PaymentError("Recipient, phone, address and city are required")
+
+    field_limits = [
+        ("recipient", 160),
+        ("phone", 32),
+        ("address", 1000),
+        ("city", 100),
+    ]
+    if any(len(address[k].strip()) > maxlen for k, maxlen in field_limits):
+        raise PaymentError("Delivery details are too long")
+
+    # Payment must use a previously locked, server-calculated shipping quote
+    quote = ShippingQuote.objects.select_related("zone").filter(purchase=purchase).first()
+    if quote is None:
+        raise PaymentError("Lock a shipping quote before starting payment")
+
+    if quote.grand_total != purchase.total or (quote.merchandise_total + quote.fee) != quote.grand_total:
+        raise PaymentError("Shipping quote and order total do not match")
+
+    if address["city"].strip().casefold() != quote.city_snapshot.strip().casefold():
+        raise PaymentError("Delivery city differs from locked shipping quote")
+
+    if purchase.currency != "BDT":
+        raise PaymentError("This checkout only supports BDT")
+
+    clean_address = {k: address[k].strip() for k in required}
+    delivery, created = Delivery.objects.get_or_create(
+        purchase=purchase,
+        defaults=clean_address,
+    )
+
+    if not created and (
+        delivery.city.strip().casefold() != quote.city_snapshot.strip().casefold()
+        or any(getattr(delivery, k) != clean_address[k] for k in required)
+    ):
+        raise PaymentError("Delivery details changed; contact support to restart payment")
+
+    existing = (
+        PaymentAttempt.objects.filter(
+            purchase=purchase,
+            status=PaymentAttempt.State.INITIATED,
+        )
+        .order_by("-created_at")
+        .first()
+    )
+
+    if existing and existing.gateway_session:
+        raise PaymentError("A payment session already exists; retry from the payment page or contact support")
+
+    attempt = PaymentAttempt.objects.create(
+        purchase=purchase,
+        transaction_id="EVU-" + uuid.uuid4().hex,
+        amount=purchase.total,
+        currency=purchase.currency,
+    )
+    return attempt, delivery
+
+
+@transaction.atomic
+def verify_and_finalize(validation_id):
+    # Validation is performed directly against the gateway API
+    result = validate(validation_id)
+
+    store_id, _, _ = config()
+    if result.get("store_id") and str(result["store_id"]) != str(store_id):
+        raise PaymentError("Gateway merchant identity mismatch")
+
+    tran_id = result.get("tran_id")
+    if not tran_id:
+        raise PaymentError("Gateway did not return a transaction ID")
+
+    attempt = (
+        PaymentAttempt.objects.select_for_update()
+        .select_related("purchase")
+        .filter(transaction_id=tran_id)
+        .first()
+    )
+    if attempt is None:
+        raise PaymentError("Unknown payment transaction")
+
+    purchase = Purchase.objects.select_for_update().get(pk=attempt.purchase_id)
+
+    try:
+        paid = Decimal(str(result.get("amount", "")))
+    except (InvalidOperation, ValueError):
+        raise PaymentError("Invalid gateway amount")
+
+    if (
+        result.get("currency") != attempt.currency
+        or paid != attempt.amount
+        or attempt.amount != purchase.total
+        or attempt.currency != purchase.currency
+    ):
+        raise PaymentError("Gateway payment details do not match order")
+
+    # Idempotency check for already-verified attempts
+    if attempt.status == PaymentAttempt.State.VERIFIED:
+        if attempt.validation_id != validation_id:
+            raise PaymentError("Conflicting validation ID")
+        return purchase
+
+    if PaymentAttempt.objects.filter(validation_id=validation_id).exclude(pk=attempt.pk).exists():
+        raise PaymentError("Validation ID already used")
+
+    if purchase.status != Purchase.State.RESERVED or purchase.expires_at <= timezone.now():
+        raise PaymentError("Payment received for an expired/cancelled order: manual refund review required")
+
+    lines = list(PurchaseLine.objects.select_for_update().filter(purchase=purchase).order_by("pk"))
+    if not lines or any(line.released or line.consumed for line in lines):
+        raise PaymentError("Reservation is no longer valid")
+
+    # Reconcile inventory atomically
+    for line in lines:
+        updated = Inventory.objects.filter(
+            pk=line.inventory_id,
+            reserved__gte=line.quantity,
+            on_hand__gte=line.quantity,
+        ).update(
+            reserved=F("reserved") - line.quantity,
+            on_hand=F("on_hand") - line.quantity,
+        )
+        if updated != 1:
+            raise PaymentError("Stock reconciliation failed; manual review required")
+
+        line.consumed = True
+        line.save(update_fields=["consumed"])
+
+    purchase.status = Purchase.State.PAID
+    purchase.save(update_fields=["status"])
+
+    attempt.status = PaymentAttempt.State.VERIFIED
+    attempt.validation_id = validation_id
+    attempt.verified_at = timezone.now()
+    attempt.save(update_fields=["status", "validation_id", "verified_at"])
+
+    delivery, _ = Delivery.objects.get_or_create(
+        purchase=purchase,
+        defaults={
+            "recipient": purchase.user.get_username(),
+            "phone": "Not provided",
+            "address": "Address pending",
+            "city": "Unknown",
+        },
+    )
+    DeliveryEvent.objects.get_or_create(
+        delivery=delivery,
+        status=Delivery.State.PENDING,
+        note="Payment verified",
+    )
+
+    return purchase

@@ -1,8 +1,93 @@
 "use client";
-import {createContext,useContext,useEffect,useState,useCallback} from "react";
-import {api,CartItem} from "@/lib/client-api";
-type BagContext={items:CartItem[];count:number;loading:boolean;refresh:()=>Promise<void>;};
-const Context=createContext<BagContext>({items:[],count:0,loading:false,refresh:async()=>{}});
-export function BagProvider({children}:{children:React.ReactNode}){const [items,setItems]=useState<CartItem[]>([]),[loading,setLoading]=useState(false);const refresh=useCallback(async()=>{setLoading(true);try{const d=await api<{items:CartItem[]}>("commerce/cart/");setItems(d.items||[])}catch{setItems([])}finally{setLoading(false)}},[]);useEffect(()=>{void refresh();const f=()=>void refresh();window.addEventListener("evu:bag-updated",f);return()=>window.removeEventListener("evu:bag-updated",f)},[refresh]);return <Context.Provider value={{items,count:items.reduce((n,x)=>n+x.quantity,0),loading,refresh}}>{children}</Context.Provider>}
-export const useBag=()=>useContext(Context);
-export const notifyBag=()=>{if(typeof window!=="undefined")window.dispatchEvent(new Event("evu:bag-updated"))};
+
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
+
+export interface BagItem {
+  variant_id: string;
+  product: string;
+  sku: string;
+  quantity: number;
+  price: number;
+}
+
+interface BagContextType {
+  items: BagItem[];
+  count: number;
+  loading: boolean;
+  refresh: () => Promise<void>;
+}
+
+const BAG_EVENT = "cart:updated";
+
+const BagContext = createContext<BagContextType>({
+  items: [],
+  count: 0,
+  loading: false,
+  refresh: async () => {},
+});
+
+interface BagProviderProps {
+  children: ReactNode;
+  fetchCart?: () => Promise<{ items?: BagItem[] }>;
+}
+
+export function BagProvider({ children, fetchCart }: BagProviderProps) {
+  const [items, setItems] = useState<BagItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      if (fetchCart) {
+        const res = await fetchCart();
+        setItems(res.items || []);
+      } else {
+        const res = await fetch("/api/proxy/v2/cart/", { method: "GET", credentials: "same-origin" });
+        if (!res.ok) throw new Error("Failed to fetch cart");
+        const data = await res.json();
+        setItems(data.items || []);
+      }
+    } catch {
+      // Preserve the last known cart on transient API failures.
+      // Authentication errors should be handled by the account UI.
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchCart]);
+
+  useEffect(() => {
+    void refresh();
+
+    const handleUpdate = () => {
+      void refresh();
+    };
+
+    window.addEventListener(BAG_EVENT, handleUpdate);
+    return () => {
+      window.removeEventListener(BAG_EVENT, handleUpdate);
+    };
+  }, [refresh]);
+
+  const count = items.reduce((total, item) => total + (item.quantity || 0), 0);
+
+  return (
+    <BagContext.Provider value={{ items, count, loading, refresh }}>
+      {children}
+    </BagContext.Provider>
+  );
+}
+
+export const useBag = (): BagContextType => useContext(BagContext);
+
+export const notifyBag = (): void => {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(BAG_EVENT));
+  }
+};

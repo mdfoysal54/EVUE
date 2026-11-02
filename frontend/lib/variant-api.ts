@@ -1,0 +1,11 @@
+import {api} from "@/lib/client-api";
+export type Variant = {id:string;sku:string;size:string;color:string;price:string;currency:string};
+export type VariantCartItem = {variant_id:string;sku:string;product:string;quantity:number;price:string};
+export type ReservedOrder = {id:string;status:string;total:string;currency:string;expires_at:string;lines:{sku:string;quantity:number;price:string;location:string}[]};
+export const getVariants = (productId:string) => api<{variants:Variant[]}>(`v2/products/${productId}/variants/`);
+export const getVariantCart = () => api<{items:VariantCartItem[]}>("v2/cart/");
+export const addVariant = (variant_id:string,quantity:number) => api<{items:VariantCartItem[]}>("v2/cart/","POST",{variant_id,quantity});
+export const removeVariant = (variant_id:string) => api<{items:VariantCartItem[]}>("v2/cart/","DELETE",{variant_id});
+export const reserveOrder = (idempotency_key:string) => api<ReservedOrder>("v2/checkout/","POST",{idempotency_key});
+export const listReservedOrders = () => api<{orders:ReservedOrder[]}>("v2/orders/");
+export const cancelReservedOrder = (id:string) => api<ReservedOrder>(`v2/orders/${id}/cancel/`,"POST",{});

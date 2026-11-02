@@ -1,15 +1,42 @@
-# Optional one-shot expiry worker: run with
-# docker compose -f docker-compose.yml -f docker-compose.expiry.yml run --rm expiry
 services:
-  expiry:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: evu
+      POSTGRES_USER: evu
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in root .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evu -d evu"]
+      interval: 5s
+      retries: 10
+  backend:
     build: ./backend
     environment:
       DATABASE_URL: postgres://evu:${POSTGRES_PASSWORD}@db:5432/evu
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY}
       DJANGO_DEBUG: ${DJANGO_DEBUG:-false}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,backend}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-http://localhost:3000}
+      EVU_SERVE_MEDIA_LOCALLY: "true" # LOCAL DEVELOPMENT ONLY; disable in production
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - product_media:/app/media
     depends_on:
       db:
         condition: service_healthy
-    command: python manage.py release_expired_orders
-    restart: "no"
+    command: sh -c "python manage.py migrate && python manage.py collectstatic --noinput && gunicorn evu.wsgi:application --bind 0.0.0.0:8000 --workers 2 --access-logfile -"
+  frontend:
+    build: ./frontend
+    environment:
+      API_INTERNAL_URL: http://backend:8000
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - backend
+volumes:
+  pgdata:
+  product_media:
