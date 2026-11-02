@@ -1,14 +1,122 @@
 "use client";
-import Link from "next/link";
+
 import { useEffect, useState } from "react";
-import { Search, ShoppingBag, UserRound, Heart, Menu, X, Globe2 } from "lucide-react";
-import SearchOverlay from "@/components/SearchOverlay";
+import Link from "next/link";
+import {
+  Heart,
+  Menu,
+  Search,
+  ShoppingBag,
+  UserRound,
+  X,
+} from "lucide-react";
+
+import AnnouncementBar from "@/components/announcements/AnnouncementBar";
 import BagDrawer from "@/components/BagDrawer";
 import { useBag } from "@/components/BagProvider";
-export default function SiteHeader(){
- const [scrolled,setScrolled]=useState(false),[search,setSearch]=useState(false),[bag,setBag]=useState(false),[mobile,setMobile]=useState(false);
- const {count}=useBag();
- useEffect(()=>{const f=()=>setScrolled(window.scrollY>24);f();window.addEventListener("scroll",f,{passive:true});return()=>window.removeEventListener("scroll",f)},[]);
- useEffect(()=>{const f=(e:KeyboardEvent)=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){e.preventDefault();setSearch(true)}};window.addEventListener("keydown",f);return()=>window.removeEventListener("keydown",f)},[]);
- return <><div className="utility"><span>THE EVU EDITION — CONTEMPORARY WARDROBE</span><span><Globe2 size={12}/> Bangladesh · BDT</span></div><header className={`site-header ${scrolled?"is-scrolled":""}`}><div className="header-inner"><button className="icon-btn mobile-toggle" aria-label="Toggle menu" onClick={()=>setMobile(!mobile)}>{mobile?<X/>:<Menu/>}</button><Link className="wordmark" href="/" aria-label="EVU home">EVU<span>•</span></Link><nav className={mobile?"nav-links mobile-open":"nav-links"} aria-label="Main navigation"><Link onClick={()=>setMobile(false)} href="/shop">SHOP ALL</Link><Link onClick={()=>setMobile(false)} href="/shop?edit=new">NEW ARRIVALS</Link><Link onClick={()=>setMobile(false)} href="/editorial">THE JOURNAL</Link><Link onClick={()=>setMobile(false)} href="/about">OUR HOUSE</Link></nav><div className="header-actions"><button className="icon-btn search-action" aria-label="Search products" onClick={()=>setSearch(true)}><Search size={19}/></button><Link className="icon-btn" aria-label="Wishlist" href="/wishlist"><Heart size={19}/></Link><Link className="icon-btn" aria-label="Account" href="/account"><UserRound size={19}/></Link><button className="icon-btn bag-trigger" aria-label={`Shopping bag, ${count} items`} onClick={()=>setBag(true)}><ShoppingBag size={19}/><span className="bag-count">{count}</span></button></div></div></header><SearchOverlay open={search} onClose={()=>setSearch(false)}/><BagDrawer open={bag} onClose={()=>setBag(false)}/></>;
+import SearchOverlay from "@/components/SearchOverlay";
+
+export default function SiteHeader() {
+  const [scrolled, setScrolled] = useState(false);
+  const [search, setSearch] = useState(false);
+  const [bag, setBag] = useState(false);
+  const [mobile, setMobile] = useState(false);
+
+  const { count } = useBag();
+
+  // Handle scroll detection for sticky header state
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 24);
+    handleScroll();
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // Keyboard shortcut (Cmd/Ctrl + K) for search overlay
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearch(true);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  return (
+    <>
+      <AnnouncementBar />
+
+      <header className={`site-header ${scrolled ? "is-scrolled" : ""}`}>
+        <div className="header-inner">
+          {/* Mobile menu trigger */}
+          <button
+            aria-label="Toggle menu"
+            className="icon-btn mobile-toggle"
+            onClick={() => setMobile(!mobile)}
+          >
+            {mobile ? <X /> : <Menu />}
+          </button>
+
+          {/* Brand logo */}
+          <Link aria-label="EVU home" className="wordmark" href="/">
+            EVU<span>•</span>
+          </Link>
+
+          {/* Navigation links */}
+          <nav
+            aria-label="Main navigation"
+            className={mobile ? "nav-links mobile-open" : "nav-links"}
+          >
+            <Link href="/shop" onClick={() => setMobile(false)}>
+              SHOP ALL
+            </Link>
+            <Link href="/shop?edit=new" onClick={() => setMobile(false)}>
+              NEW ARRIVALS
+            </Link>
+            <Link href="/editorial" onClick={() => setMobile(false)}>
+              THE JOURNAL
+            </Link>
+            <Link href="/about" onClick={() => setMobile(false)}>
+              OUR HOUSE
+            </Link>
+          </nav>
+
+          {/* Action buttons */}
+          <div className="header-actions">
+            <button
+              aria-label="Search products"
+              className="icon-btn search-action"
+              onClick={() => setSearch(true)}
+            >
+              <Search size={19} />
+            </button>
+
+            <Link aria-label="Wishlist" className="icon-btn" href="/wishlist">
+              <Heart size={19} />
+            </Link>
+
+            <Link aria-label="Account" className="icon-btn" href="/account">
+              <UserRound size={19} />
+            </Link>
+
+            <button
+              aria-label={`Shopping bag, ${count} items`}
+              className="icon-btn bag-trigger"
+              onClick={() => setBag(true)}
+            >
+              <ShoppingBag size={19} />
+              <span className="bag-count">{count}</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <SearchOverlay open={search} onClose={() => setSearch(false)} />
+      <BagDrawer open={bag} onClose={() => setBag(false)} />
+    </>
+  );
 }

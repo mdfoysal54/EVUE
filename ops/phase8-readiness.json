@@ -1,0 +1,17 @@
+{
+  "read_only": true,
+  "checks": [
+    {
+      "url": "http://127.0.0.1:3000/",
+      "status": 200,
+      "content_type": "text/html; charset=utf-8"
+    },
+    {
+      "url": "http://127.0.0.1:8000/api/catalog/products/",
+      "status": 200,
+      "content_type": "application/json"
+    }
+  ],
+  "pass": true,
+  "warning": "HTTP 200 is not proof that checkout, payment or fulfillment works."
+}

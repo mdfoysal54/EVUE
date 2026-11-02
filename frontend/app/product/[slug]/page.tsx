@@ -1,6 +1,58 @@
-import AddToBag from "@/components/AddToBag";
+
 import Link from "next/link";
-import {notFound} from "next/navigation";
-import {getProduct,money} from "@/lib/catalog";
+import { notFound } from "next/navigation";
+import VariantSelector from "@/components/VariantSelector";
 import WishlistButton from "@/components/WishlistButton";
-export default async function ProductPage({params}:{params:Promise<{slug:string}>}){const {slug}=await params;const p=await getProduct(slug);if(!p)notFound();return <main className="product-page"><div className="detail-image">{p.image_url?<img src={p.image_url} alt={p.name}/>:<div className="product-placeholder"><span>EVU</span><small>THE COLLECTION</small></div>}</div><div className="detail-content"><Link className="eyebrow" href="/shop">← BACK TO THE COLLECTION</Link><div className="detail-title"><span className="eyebrow">{p.category||"THE EVU EDIT"}</span><h1>{p.name}</h1><div className="detail-price">{money(p.price,p.currency)} <WishlistButton id={p.id}/></div></div><p className="detail-description">{p.description||"A refined piece for your everyday wardrobe."}</p><AddToBag id={p.id}/><div className="detail-notice">Checkout currently reserves an unpaid order. Online payment is not yet available.</div><div className="detail-accordion"><details><summary>DETAILS & CARE</summary><p>Product-specific care information will be available when supplied by the catalog.</p></details><details><summary>DELIVERY & RETURNS</summary><p>Shipping and return terms will be confirmed before payment launches.</p></details></div></div></main>}
+import { getProduct, money } from "@/lib/catalog";
+
+interface ProductPageProps {
+  params: { slug: string } | Promise<{ slug: string }>;
+}
+
+export default async function ProductPage({ params }: ProductPageProps) {
+  const { slug } = await params;
+  const product = await getProduct(slug);
+
+  if (!product) notFound();
+
+  return (
+    <main className="product-page">
+      <div className="detail-image">
+        {product.image_url ? (
+          <img src={product.image_url} alt={product.name} />
+        ) : (
+          <div className="product-placeholder">
+            <span>EVU</span>
+            <small>THE COLLECTION</small>
+          </div>
+        )}
+      </div>
+
+      <div className="detail-content">
+        <Link className="eyebrow" href="/shop">
+          ← BACK TO THE COLLECTION
+        </Link>
+
+        <div className="detail-title">
+          <span className="eyebrow">
+            {product.category || "THE EVU EDIT"}
+          </span>
+
+          <h1>{product.name}</h1>
+
+          <div className="detail-price">
+            From {money(product.price, product.currency || "BDT")}{" "}
+            <WishlistButton id={product.id} />
+          </div>
+        </div>
+
+        <p className="detail-description">
+          {product.description ||
+            "Explore this piece from the EVU collection."}
+        </p>
+
+        <VariantSelector productId={product.id} />
+      </div>
+    </main>
+  );
+}

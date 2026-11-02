@@ -1,17 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api, type CartItem } from "@/lib/client-api";
+import { useEffect, useState } from "react";
 
-export default function Cart() {
+export interface CartItem {
+  variant_id: string;
+  product: string;
+  sku: string;
+  quantity: number;
+  price: number;
+}
+
+interface CartProps {
+  onFetchCart?: () => Promise<{ items: CartItem[] }>;
+  onRemoveItem?: (id: string) => Promise<void>;
+}
+
+export default function Cart({ onFetchCart, onRemoveItem }: CartProps) {
   const [items, setItems] = useState<CartItem[]>([]);
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>("");
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   async function refresh() {
     try {
-      const data = await api<{ items: CartItem[] }>("commerce/cart/");
+      if (!onFetchCart) return;
+      const data = await onFetchCart();
       setItems(data.items);
       setError("");
     } catch (err) {
@@ -23,15 +36,18 @@ export default function Cart() {
     void refresh();
   }, []);
 
-  async function remove(id: string) {
-    setBusy(true);
+  async function handleRemove(id: string) {
+    setBusyId(id);
     try {
-      await api("commerce/cart/", "DELETE", { product_id: id });
+      if (onRemoveItem) {
+        await onRemoveItem(id);
+      }
       await refresh();
+      window.dispatchEvent(new Event("cart:updated"));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setBusy(false);
+      setBusyId(null);
     }
   }
 
@@ -43,21 +59,21 @@ export default function Cart() {
       {items.length > 0 ? (
         <div className="evu-cart-list">
           {items.map((item) => (
-            <div className="evu-cart-row" key={item.product_id}>
+            <div className="evu-cart-row" key={item.variant_id}>
               <div className="evu-cart-details">
-                <strong>{item.name}</strong>
+                <strong>{item.product}</strong>
                 <p>
-                  {item.quantity} × {item.currency} {item.unit_price}
+                  {item.sku} · {item.quantity} × BDT {item.price}
                 </p>
               </div>
 
               <button
                 type="button"
                 className="evu-remove-button"
-                disabled={busy}
-                onClick={() => remove(item.product_id)}
+                disabled={busyId === item.variant_id}
+                onClick={() => handleRemove(item.variant_id)}
               >
-                Remove
+                {busyId === item.variant_id ? "Removing..." : "Remove"}
               </button>
             </div>
           ))}
@@ -68,21 +84,16 @@ export default function Cart() {
         </div>
       ) : (
         !error && (
-          <p className="evu-empty-state">
+          <p>
             Your bag is empty.{" "}
-            <Link href="/shop" className="evu-text-link">
-              Explore the collection →
-            </Link>
+            <Link href="/shop">Explore the collection →</Link>
           </p>
         )
       )}
 
       {error && (
         <p role="alert" className="evu-error">
-          {error}{" "}
-          <Link href="/account" className="evu-text-link">
-            Account
-          </Link>
+          {error} <Link href="/account">Sign in</Link>
         </p>
       )}
     </main>

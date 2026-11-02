@@ -36,6 +36,14 @@ INSTALLED_APPS = [
     "accounts",
     "operations",
     "commerce",
+    "preorders",
+    "wishlist",
+    "variantcommerce",
+    "paymentfulfillment",
+    "shippingreturns",
+    "commerceops",
+    "commercecontrol",
+    'sitecontrol',
 ]
 
 MIDDLEWARE = [
@@ -152,3 +160,23 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = False
 # Session lifespan configuration
 SESSION_COOKIE_AGE = 60 * 60 * 8
 SESSION_SAVE_EVERY_REQUEST = False
+
+# Uploaded product images (persistent volume mounted at /app/media).
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
+# Local Docker only. Never enable the Django media route on a public deployment.
+EVU_SERVE_MEDIA_LOCALLY = os.getenv("EVU_SERVE_MEDIA_LOCALLY", "false").lower() == "true"
+
+# Maximum uploaded file size enforced by Django's upload handlers (10 MiB).
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
+
+# Third-party integrations
+SSLCOMMERZ_STORE_ID = os.getenv("SSLCOMMERZ_STORE_ID", "")
+SSLCOMMERZ_STORE_PASSWORD = os.getenv("SSLCOMMERZ_STORE_PASSWORD", "")
+SSLCOMMERZ_SANDBOX = os.getenv("SSLCOMMERZ_SANDBOX", "true").lower() == "true"
+EVU_PUBLIC_BACKEND_URL = os.getenv("EVU_PUBLIC_BACKEND_URL", "")
+
+# Webhook Secrets
+EVU_COURIER_WEBHOOK_SECRET = os.getenv("EVU_COURIER_WEBHOOK_SECRET", "")

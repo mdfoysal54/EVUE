@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils import timezone
-from .models import Announcement, Offer, Notification, TransactionRecord, AdminAuditLog
+from .models import Announcement, Offer, Notification, TransactionRecord, AdminAuditLog, NewsletterSubscription
 
 class AuditedAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
@@ -12,8 +12,10 @@ class AuditedAdmin(admin.ModelAdmin):
 
 @admin.register(Announcement)
 class AnnouncementAdmin(AuditedAdmin):
-    list_display = ('title','published','important','created_at')
-    list_filter = ('published','important')
+    list_display = ('title','kind','placement','published','publish_from','publish_until','priority')
+    list_filter = ('published','kind','placement','important')
+    prepopulated_fields = {'slug': ('title',)}
+    ordering = ('-priority','-created_at')
     search_fields = ('title','body')
 
 @admin.register(Offer)
@@ -44,3 +46,10 @@ class AdminAuditLogAdmin(admin.ModelAdmin):
     def has_add_permission(self, request): return False
     def has_change_permission(self, request, obj=None): return False
     def has_delete_permission(self, request, obj=None): return False
+@admin.register(NewsletterSubscription)
+class NewsletterSubscriptionAdmin(admin.ModelAdmin):
+    list_display = ('email','consented_at','active')
+    search_fields = ('email',)
+    list_filter = ('active',)
+    readonly_fields = ('email','consented_at')
+    def has_add_permission(self, request): return False

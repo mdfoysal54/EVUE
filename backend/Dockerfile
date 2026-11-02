@@ -1,3 +1,4 @@
+
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -15,8 +16,8 @@ RUN groupadd --system appuser \
 
 COPY --chown=appuser:appuser . /app/
 
-RUN mkdir -p /app/staticfiles \
-    && chown -R appuser:appuser /app/staticfiles
+RUN mkdir -p /app/staticfiles /app/media \
+    && chown -R appuser:appuser /app/staticfiles /app/media
 
 USER appuser
 
